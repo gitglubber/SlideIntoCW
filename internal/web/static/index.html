@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Slide-ConnectWise Integration</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔄 Slide-ConnectWise Integration</h1>
+            <div class="health-status" id="healthStatus">
+                <span class="status-indicator"></span>
+                <span class="status-text">Checking...</span>
+            </div>
+        </header>
+
+        <nav class="tabs">
+            <button class="tab-btn active" data-tab="dashboard">📊 Dashboard</button>
+            <button class="tab-btn" data-tab="mappings">🗺️ Client Mappings</button>
+            <button class="tab-btn" data-tab="ticketing">🎫 Ticketing Config</button>
+            <button class="tab-btn" data-tab="alerts">🚨 Alerts</button>
+            <button class="tab-btn" data-tab="tickets">📋 Tickets</button>
+        </nav>
+
+        <main>
+            <!-- Dashboard Tab -->
+            <div id="dashboard" class="tab-content active">
+                <h2>Dashboard</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">🚨</div>
+                        <div class="stat-info">
+                            <div class="stat-label">Unresolved Alerts</div>
+                            <div class="stat-value" id="unresolvedAlerts">-</div>
+                            <div class="stat-detail" id="totalAlerts">-</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🗺️</div>
+                        <div class="stat-info">
+                            <div class="stat-label">Mapped Clients</div>
+                            <div class="stat-value" id="mappedClients">-</div>
+                            <div class="stat-detail" id="totalClients">-</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🎫</div>
+                        <div class="stat-info">
+                            <div class="stat-label">Open Tickets</div>
+                            <div class="stat-value" id="openTickets">-</div>
+                            <div class="stat-detail">Active integrations</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="info-box">
+                    <h3>ℹ️ System Information</h3>
+                    <p>The alert monitor runs every 5 minutes, automatically creating tickets for unresolved alerts.</p>
+                    <p>Ensure you have configured client mappings and ticketing settings before running the service.</p>
+                </div>
+            </div>
+
+            <!-- Mappings Tab -->
+            <div id="mappings" class="tab-content">
+                <h2>Client Mappings</h2>
+                <div class="action-bar">
+                    <button class="btn btn-primary" id="autoMapBtn">🤖 Auto-Map Clients</button>
+                    <button class="btn btn-secondary" id="refreshMappingsBtn">🔄 Refresh</button>
+                    <input type="text" id="mappingSearch" placeholder="🔍 Search clients..." class="search-input">
+                </div>
+                <div id="mappingsList" class="mappings-list">
+                    <div class="loading">Loading mappings...</div>
+                </div>
+            </div>
+
+            <!-- Ticketing Config Tab -->
+            <div id="ticketing" class="tab-content">
+                <h2>Ticketing Configuration</h2>
+                <form id="ticketingForm" class="config-form">
+                    <div class="form-section">
+                        <h3>Board Configuration</h3>
+                        <div class="form-group">
+                            <label for="boardSelect">Service Board *</label>
+                            <select id="boardSelect" required>
+                                <option value="">Select a board...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="statusSelect">Default Status *</label>
+                            <select id="statusSelect" required>
+                                <option value="">Select a status...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="prioritySelect">Default Priority *</label>
+                            <select id="prioritySelect" required>
+                                <option value="">Select a priority...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="typeSelect">Ticket Type *</label>
+                            <select id="typeSelect" required>
+                                <option value="">Select a type...</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>Ticket Templates</h3>
+                        <div class="form-group">
+                            <label for="ticketSummary">Summary Template *</label>
+                            <input type="text" id="ticketSummary" required placeholder="Slide Alert: {{alert_type}} for {{client_name}}">
+                            <small>Available: {{alert_type}}, {{client_name}}, {{device_name}}</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="ticketTemplate">Description Template *</label>
+                            <textarea id="ticketTemplate" rows="8" required placeholder="Alert Details:
+
+Client: {{client_name}}
+Device: {{device_name}}
+Alert Type: {{alert_type}}
+Message: {{alert_message}}
+Timestamp: {{alert_timestamp}}"></textarea>
+                            <small>Available: {{alert_type}}, {{client_name}}, {{device_name}}, {{alert_message}}, {{alert_timestamp}}, {{agent_name}}, {{agent_hostname}}</small>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>Auto-Assignment (Optional)</h3>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="autoAssignTech">
+                                Enable auto-assignment
+                            </label>
+                        </div>
+                        <div class="form-group" id="technicianGroup" style="display: none;">
+                            <label for="technicianSelect">Technician</label>
+                            <select id="technicianSelect">
+                                <option value="">Select a technician...</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">💾 Save Configuration</button>
+                        <button type="button" class="btn btn-secondary" id="previewTemplateBtn">👁️ Preview</button>
+                    </div>
+                </form>
+                <div id="configStatus" class="status-message"></div>
+            </div>
+
+            <!-- Alerts Tab -->
+            <div id="alerts" class="tab-content">
+                <h2>Alerts</h2>
+                <div class="action-bar">
+                    <button class="btn btn-secondary" id="refreshAlertsBtn">🔄 Refresh</button>
+                    <input type="text" id="alertSearch" placeholder="🔍 Search alerts..." class="search-input">
+                    <label class="filter-checkbox">
+                        <input type="checkbox" id="unresolvedOnly" checked>
+                        Show unresolved only
+                    </label>
+                </div>
+                <div id="alertsList" class="alerts-list">
+                    <div class="loading">Loading alerts...</div>
+                </div>
+            </div>
+
+            <!-- Tickets Tab -->
+            <div id="tickets" class="tab-content">
+                <h2>Alert-Ticket Mappings</h2>
+                <div class="action-bar">
+                    <button class="btn btn-secondary" id="refreshTicketsBtn">🔄 Refresh</button>
+                    <label class="filter-checkbox">
+                        <input type="checkbox" id="openTicketsOnly" checked>
+                        Show open only
+                    </label>
+                </div>
+                <div id="ticketsList" class="tickets-list">
+                    <div class="loading">Loading tickets...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="mappingModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close">&times;</span>
+            <h2>Create Mapping</h2>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Slide Client</label>
+                    <input type="text" id="modalSlideClient" readonly>
+                </div>
+                <div class="form-group">
+                    <label>ConnectWise Company *</label>
+                    <select id="modalCWClient">
+                        <option value="">Select a company...</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-primary" id="saveMappingBtn">Save Mapping</button>
+                    <button class="btn btn-secondary" id="cancelMappingBtn">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>
