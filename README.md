@@ -1,300 +1,398 @@
 # Slide-ConnectWise Integration
 
-A Go application that integrates Slide backup monitoring API with ConnectWise Manage for automated ticket management based on backup alerts.
+**Automated ticket management for MSPs** - Monitors Slide backup alerts and automatically creates ConnectWise tickets for your clients.
 
-## Features
+## What Does This Do?
 
-- **🌐 Modern Web UI**: Full-featured web interface for easy configuration and monitoring
-- **🚨 Alert Monitoring**: Automatically monitors Slide API for backup failures and other alerts every 5 minutes
-- **🗺️ Client Mapping**: Maps Slide clients/accounts to ConnectWise companies with visual interface
-- **🎫 Automated Ticketing**: Creates ConnectWise tickets for unresolved alerts using configurable templates
-- **🚫 Duplicate Prevention**: Prevents multiple tickets for the same alert
-- **🔄 Bidirectional Auto-Resolution**:
-  - Detects when backup issues are resolved and closes both alerts and tickets
-  - Detects when ConnectWise tickets are manually closed and closes corresponding Slide alerts
-- **📋 Rich Templates**: Includes client, device, agent, and error details in tickets
-- **⚙️ Easy Configuration**: Web-based configuration with template preview
-- **📊 Real-time Dashboard**: Monitor alerts, tickets, and mappings at a glance
+This application bridges **Slide Backup** (backup monitoring) and **ConnectWise Manage** (ticketing system) to automate your MSP's backup alert workflow:
 
-## Setup
+1. **Monitors** - Checks Slide API every 5 minutes for backup failures and alerts
+2. **Maps** - Matches devices to your ConnectWise client companies
+3. **Creates Tickets** - Automatically creates tickets in ConnectWise when issues occur
+4. **Auto-Closes** - Closes both alerts and tickets when backups succeed again
+5. **Syncs** - Detects manually closed tickets and closes corresponding alerts
+
+### Why Use This?
+
+- ✅ **Stop Missing Backup Failures** - No more checking Slide manually
+- ✅ **Automate Ticket Creation** - Save 5-10 minutes per alert
+- ✅ **Client Visibility** - Your clients see backup issues as proper tickets
+- ✅ **Bidirectional Sync** - Works whether you close the ticket or fix the backup
+- ✅ **MSP-Friendly** - Handles multi-tenant Slide accounts correctly
+
+## Quick Start
 
 ### Prerequisites
 
-- Go 1.19 or later
-- Slide API access (API URL and API Key)
-- ConnectWise Manage API access (API URL, Company ID, Public Key, Private Key, Client ID)
+- Go 1.19+ (for building)
+- Slide API credentials (API URL + API Key)
+- ConnectWise Manage API credentials (URL, Company ID, Public Key, Private Key, Client ID)
 
 ### Installation
 
-1. Clone the repository:
+1. **Clone and build:**
+   ```bash
+   git clone <your-repo-url>
+   cd SlideIntoCW
+   go build -o slide-integrator.exe ./cmd/slide-integrator
+   ```
+
+2. **Create `.env` file:**
+   ```bash
+   # Slide API
+   SLIDE_API_URL=https://api.slide.tech
+   SLIDE_API_KEY=your_slide_api_key
+
+   # ConnectWise API
+   CONNECTWISE_API_URL=https://your-instance.connectwisedev.com/v4_6_release/apis/3.0
+   CONNECTWISE_COMPANY_ID=your_company_id
+   CONNECTWISE_PUBLIC_KEY=your_public_key
+   CONNECTWISE_PRIVATE_KEY=your_private_key
+   CONNECTWISE_CLIENT_ID=your_client_id
+   ```
+
+3. **Start the web UI:**
+   ```bash
+   ./slide-integrator.exe -web
+   ```
+
+4. **Open browser:** http://localhost:8080
+
+## Setup (First Time)
+
+### Step 1: Map Your Clients
+
+The application needs to know which Slide clients map to which ConnectWise companies.
+
+**Web UI Method (Recommended):**
+1. Go to **Client Mappings** tab
+2. Click **🤖 Auto-Map Clients** (uses fuzzy name matching)
+3. Manually map any that didn't auto-match
+4. Click **➕ Map** next to unmapped clients
+
+**CLI Method:**
 ```bash
-git clone <repository-url>
-cd SlideIntoCW
+./slide-integrator.exe -map-clients      # Auto-map by name similarity
+./slide-integrator.exe -show-mappings    # Verify mappings
 ```
 
-2. Install dependencies:
-```bash
-go mod tidy
-```
+### Step 2: Configure Ticketing
 
-3. Create `.env` file with your API credentials:
-```bash
-# Slide API Configuration
-SLIDE_API_URL=https://api.slide.tech
-SLIDE_API_KEY=your_slide_api_key
+Tell the app how to create tickets in ConnectWise.
 
-# ConnectWise API Configuration
-CONNECTWISE_API_URL=https://your-instance.connectwisedev.com/v4_6_release/apis/3.0
-CONNECTWISE_COMPANY_ID=your_company_id
-CONNECTWISE_PUBLIC_KEY=your_public_key
-CONNECTWISE_PRIVATE_KEY=your_private_key
-CONNECTWISE_CLIENT_ID=your_client_id
+**Web UI (Recommended):**
+1. Go to **Ticketing Config** tab
+2. Select your **Service Board**
+3. Choose default **Status** (e.g., "New")
+4. Set **Priority** (e.g., "Medium")
+5. Pick **Ticket Type** (e.g., "Issue")
+6. Customize templates if desired
+7. Click **💾 Save Configuration**
 
-# Optional: Database path (defaults to ./slide_cw_integration.db)
-DATABASE_PATH=./slide_cw_integration.db
-```
+The templates support these variables:
+- `{{alert_type}}` - Type of alert
+- `{{client_name}}` - ConnectWise company name
+- `{{device_name}}` - Device hostname
+- `{{alert_message}}` - Error message
+- `{{alert_timestamp}}` - When alert occurred
+- `{{agent_name}}` - Backup agent name
+- `{{agent_hostname}}` - Agent machine name
 
-4. Build the application:
-```bash
-go build -o slide-integrator.exe ./cmd/slide-integrator
-```
+### Step 3: Run the Service
 
-## Project Structure
-
-```
-├── cmd/slide-integrator/     # Main application entry point
-├── internal/
-│   ├── web/                 # Web UI server and API
-│   ├── slide/               # Slide API client
-│   ├── connectwise/         # ConnectWise API client
-│   ├── database/            # Database operations
-│   ├── mapping/             # Client mapping logic
-│   ├── tui/                 # Terminal UI (legacy)
-│   └── alerts/              # Alert monitoring and processing
-├── pkg/models/              # Data models
-└── .env.example            # Environment configuration template
-```
-
-## Usage
-
-### 🌐 Web UI (Recommended)
-
-Start the web interface with built-in alert monitoring:
-
-```bash
-./slide-integrator.exe -web
-```
-
-Then open your browser to: **http://localhost:8080**
-
-The web UI provides:
-- **Dashboard**: Real-time stats on alerts, mappings, and tickets
-- **Client Mappings**: Visual interface to map Slide clients to ConnectWise companies
-- **Ticketing Config**: Easy form-based configuration with template preview
-- **Alerts View**: Browse and manage all alerts
-- **Tickets View**: Monitor alert-to-ticket mappings
-
-Custom port:
-```bash
-./slide-integrator.exe -web -port 3000
-```
-
-### 📋 CLI Commands (Legacy)
-
-For headless server environments, you can still use CLI commands:
-
-1. **Map Clients**: Map Slide clients to ConnectWise companies
-```bash
-./slide-integrator.exe -map-interactive
-```
-
-2. **Setup Ticketing**: Configure ConnectWise board, status, priority, and type
-```bash
-./slide-integrator.exe -setup-ticketing
-```
-
-### Management Commands
-
-- **Show current mappings**:
-```bash
-./slide-integrator.exe -show-mappings
-```
-
-- **Clear all mappings**:
-```bash
-./slide-integrator.exe -clear-mappings
-```
-
-- **Auto-map clients** (uses fuzzy matching):
-```bash
-./slide-integrator.exe -map-clients
-```
-
-### Running the Service
-
-**Option 1: Web UI Mode (Recommended)**
 ```bash
 ./slide-integrator.exe -web
 ```
-This starts both the web interface and alert monitoring service together.
 
-**Option 2: CLI-Only Mode**
+This starts both:
+- **Web UI** on http://localhost:8080 (for management)
+- **Alert Monitor** running in background (checks every 5 minutes)
+
+## How It Works
+
+### For MSP Multi-Tenant Accounts
+
+If you're an MSP with multiple clients under one Slide account:
+
+1. **Alert arrives** - Slide alert shows your MSP account name (e.g., "Teknologize VIP Pilot")
+2. **Device lookup** - App looks up which device the alert is for
+3. **Smart matching** - Matches device name prefix to client:
+   - Device "CVC-S5TB" → "Center Vision Clinic"
+   - Device "BM-S3TB" → "Badger Mountain"
+4. **Client mapping** - Finds ConnectWise company for that client
+5. **Ticket creation** - Creates ticket under correct company in CW
+
+### Alert-to-Ticket Lifecycle
+
+```
+🚨 Backup Failure Detected
+    ↓
+🔍 Device → Client Lookup
+    ↓
+🗺️ Client → ConnectWise Mapping
+    ↓
+🎫 Ticket Created in ConnectWise
+    ↓
+⏳ Monitor Every 5 Minutes
+    ↓
+✅ Resolution (either way):
+    • Backup succeeds → Close ticket & alert
+    • Ticket closed manually → Close alert
+```
+
+## Web UI Features
+
+### 📊 Dashboard
+- Real-time statistics
+- Unresolved alerts count
+- Mapped clients progress
+- Open tickets tracking
+- Auto-refreshes every 30 seconds
+
+### 🗺️ Client Mappings
+- Visual list of all Slide clients
+- One-click mapping creation
+- Auto-map with fuzzy matching
+- Search and filter
+- Delete mappings
+
+### 🎫 Ticketing Config
+- Form-based configuration
+- Board, status, priority, type selection
+- Template editor with variables
+- Live template preview
+- Auto-assignment options
+
+### 🚨 Alerts Management
+- Browse all alerts
+- Filter by resolved/unresolved
+- Search by any field
+- See which alerts have tickets
+- Manual alert closure
+
+### 📋 Tickets View
+- Alert-to-ticket relationships
+- Real-time ConnectWise status
+- Filter open/closed
+- Sync status warnings
+
+## CLI Commands
+
 ```bash
+# Recommended - Start with Web UI
+./slide-integrator.exe -web
+./slide-integrator.exe -web -port 3000    # Custom port
+
+# Service only (no UI)
 ./slide-integrator.exe
+
+# Utility commands
+./slide-integrator.exe -map-clients       # Auto-map clients
+./slide-integrator.exe -show-mappings     # Show current mappings
+./slide-integrator.exe -clear-mappings    # Clear all mappings
+./slide-integrator.exe -h                 # Show help
 ```
-This runs only the alert monitoring service without the web UI.
-
-The service will:
-- Check for alerts every 5 minutes
-- Create tickets for unresolved alerts
-- Monitor for alert resolution and close tickets automatically
-- Detect manually closed ConnectWise tickets and close corresponding Slide alerts
-
-### 🎯 **ENHANCED: Interactive Mapping TUI with Smart Search**
-The `-map-interactive` command now features **powerful search and intelligent matching**:
-
-**🔍 Advanced Search Features:**
-- **Fuzzy Text Search** - Press `s` to search by typing client names
-- **Smart Suggestions** - Similar clients automatically shown first
-- **Real-time Filtering** - Results update as you type
-- **Company Name Cleaning** - Ignores LLC, Inc, Corp differences
-- **Complete Client Lists** - Fetches ALL active clients via API pagination
-- **Performance Optimized** - Handles thousands of clients smoothly
-
-**🎨 Enhanced Interface:**
-- 💡 **Similar clients highlighted** in blue with lightbulb icons
-- ✅ **Mapped clients** shown in green with arrow to target
-- 🔍 **Search mode** with live input field and cursor
-- 📊 **Pagination indicators** showing "X of Y clients"
-- 🎯 **Targeted suggestions** based on selected Slide client
-
-**🚀 Improved Workflow:**
-1. **Browse or Search** - Use arrows OR press `s` to search Slide clients
-2. **Smart Matching** - When you select a Slide client, ConnectWise shows similar clients first
-3. **Precise Search** - Use `s` again to search ConnectWise if needed
-4. **Quick Selection** - Similar clients highlighted for fast picking
-
-**Navigation:**
-- `↑/↓` or `j/k` - Navigate lists
-- `s` - **Start search mode**
-- `Type` - **Search in real-time**
-- `ENTER` - Select client or confirm mapping
-- `ESC` - Cancel search or go back
-- `TAB` - Switch between mapping and viewing modes
-- `q` - Quit
-
-## Configuration
-
-### Ticket Template Variables
-
-The ticket templates support the following variables:
-
-- `{{alert_id}}` - Slide alert ID
-- `{{alert_type}}` - Type of alert (e.g., agent_backup_failed)
-- `{{alert_message}}` - Error message from the alert
-- `{{alert_timestamp}}` - When the alert was created
-- `{{client_id}}` - Slide client/account ID
-- `{{client_name}}` - Mapped ConnectWise client name
-- `{{device_id}}` - Slide device ID
-- `{{device_name}}` - Device name from alert
-- `{{agent_name}}` - Agent name from alert
-- `{{agent_hostname}}` - Agent hostname from alert
-
-### Database Schema
-
-The application uses SQLite with the following tables:
-
-- `client_mappings` - Maps Slide clients to ConnectWise companies
-- `alert_ticket_mappings` - Tracks which tickets were created for which alerts
-- `ticketing_config` - Stores ConnectWise board, status, priority, and type configuration
 
 ## Architecture
 
 ```
-cmd/slide-integrator/     # Main application entry point
-internal/
-  ├── alerts/             # Alert monitoring and processing
-  ├── connectwise/        # ConnectWise API client
-  ├── database/           # SQLite database layer
-  ├── mapping/            # Client mapping service
-  ├── slide/              # Slide API client
-  └── tui/                # Terminal UI for interactive setup
-pkg/models/               # Data models and structures
+┌─────────────────┐
+│   Web Browser   │  ← You manage here
+│  localhost:8080 │
+└────────┬────────┘
+         │
+         ↓
+┌─────────────────┐
+│   Go Web Server │
+│   (REST API)    │
+├─────────────────┤
+│ Alert Monitor   │  ← Runs every 5 min
+│  (Background)   │
+└────┬───────┬────┘
+     │       │
+     ↓       ↓
+┌─────────┐ ┌──────────────┐
+│  Slide  │ │ ConnectWise  │
+│   API   │ │  Manage API  │
+└─────────┘ └──────────────┘
 ```
 
-## API Integration
+**Components:**
+- `internal/web/` - HTTP server, REST API, embedded static files
+- `internal/alerts/` - Alert monitoring and ticket creation logic
+- `internal/slide/` - Slide API client
+- `internal/connectwise/` - ConnectWise API client
+- `internal/mapping/` - Client mapping service
+- `internal/database/` - SQLite database for mappings and config
 
-### Slide API
-- Fetches clients, devices, alerts, and backups
-- Closes alerts when issues are resolved
-- Handles pagination for large datasets
-- Parses complex alert fields for client, device, and agent information
+**Database Tables:**
+- `client_mappings` - Slide client ↔ ConnectWise company
+- `alert_ticket_mappings` - Alert ↔ Ticket relationships
+- `ticketing_config` - Board, status, priority, type settings
 
-### ConnectWise API
-- Creates tickets with full configuration support
-- Manages companies, boards, statuses, priorities, and types
-- Updates and closes tickets
-- Handles API authentication and pagination
-- Detects manually closed tickets for bidirectional sync
+## Troubleshooting
 
-## How It Works
+### Alerts Show Wrong Client
 
-### Complete Workflow:
+**Problem:** All alerts show the same client (your MSP account name)
 
-1. **Setup Phase**:
-   - Run `./slide-integrator.exe -map-interactive` to map Slide accounts to ConnectWise companies
-   - Run `./slide-integrator.exe -setup-ticketing` to configure board, status, priority, type
+**Solution:** This is correct for MSP accounts! The app automatically looks up the device and matches it to the correct end client. Check the "Device Name" shown on alerts - it should have a prefix matching your client's initials.
 
-2. **Monitoring Phase** (runs continuously every 5 minutes):
-   - **Alert Detection**: Monitors Slide API for unresolved alerts
-   - **Ticket Creation**: Creates ConnectWise tickets with rich templates including:
-     - Client name (from mapping, not Slide account name)
-     - Device and agent information
-     - Error messages and timestamps
-   - **Duplicate Prevention**: Prevents multiple tickets for the same alert
+**If still wrong:**
+1. Check device naming convention (e.g., "CVC-S5TB" for Center Vision Clinic)
+2. Verify client mappings are correct in web UI
+3. Look at alert's `matchMethod` field (shown in browser console)
 
-3. **Resolution Phase** (bidirectional):
-   - **Backup Fixed**: When backups succeed after alert → closes both Slide alert and ConnectWise ticket
-   - **Manual Close**: When ConnectWise ticket is manually closed → closes corresponding Slide alert
-   - **Database Sync**: Updates alert-ticket mappings with closure timestamps
+### Tickets Not Being Created
 
-### Alert-to-Ticket Lifecycle:
+**Checklist:**
+- ✅ Client mappings exist (check Mappings tab)
+- ✅ Ticketing config is saved (check Config tab)
+- ✅ Service is running (`-web` mode or standalone)
+- ✅ Check logs in terminal for API errors
 
+### Sync Issues
+
+**Problem:** Ticket shows "Needs Sync" warning
+
+**Explanation:** Ticket was closed in ConnectWise but the local database hasn't updated yet.
+
+**Solution:** Wait 5 minutes for next monitor cycle, or restart the service.
+
+### Port Already in Use
+
+```bash
+./slide-integrator.exe -web -port 8081    # Try different port
 ```
-🚨 Slide Alert (Unresolved)
-    ↓
-📋 Client Mapping Resolution (account → ConnectWise company)
-    ↓
-🎫 ConnectWise Ticket Creation (with rich template)
-    ↓
-📊 Database Mapping (alert ↔ ticket relationship)
-    ↓
-🔄 Continuous Monitoring (every 5 minutes)
-    ↓
-✅ Resolution Detection:
-    • Successful backup → close both alert & ticket
-    • Manual ticket close → close corresponding alert
+
+## Production Deployment
+
+### Running as a Service
+
+**Windows (NSSM):**
+```powershell
+nssm install SlideIntegrator "C:\path\to\slide-integrator.exe" "-web"
+nssm set SlideIntegrator AppDirectory "C:\path\to"
+nssm start SlideIntegrator
+```
+
+**Linux (systemd):**
+```ini
+[Unit]
+Description=Slide-ConnectWise Integration
+After=network.target
+
+[Service]
+Type=simple
+User=slideapp
+WorkingDirectory=/opt/slide-integrator
+ExecStart=/opt/slide-integrator/slide-integrator -web
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### Security Considerations
+
+⚠️ **Important:** The web UI has no built-in authentication!
+
+**Recommendations:**
+1. **Firewall** - Only allow localhost access
+2. **Reverse Proxy** - Use nginx/Apache with HTTPS and basic auth
+3. **VPN** - Require VPN to access the server
+4. **Network Isolation** - Run on internal network only
+
+**Example nginx config:**
+```nginx
+server {
+    listen 443 ssl;
+    server_name slide-integrator.example.com;
+
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+
+    auth_basic "Slide Integrator";
+    auth_basic_user_file /etc/nginx/.htpasswd;
+
+    location / {
+        proxy_pass http://localhost:8080;
+    }
+}
 ```
 
 ## Development
 
-### Adding New Alert Types
+### Project Structure
 
-1. Update `SlideAlert` model in `pkg/models/models.go`
-2. Add handling logic in `internal/alerts/monitor.go`
-3. Update ticket templates if needed
+```
+├── cmd/slide-integrator/     # Main application
+│   ├── main.go              # Entry point, web server mode
+│   └── commands.go          # CLI commands
+├── internal/
+│   ├── web/                 # Web UI server and API
+│   │   ├── server.go        # HTTP handlers
+│   │   └── static/          # HTML, CSS, JS
+│   ├── alerts/              # Alert monitoring
+│   ├── connectwise/         # ConnectWise API client
+│   ├── slide/               # Slide API client
+│   ├── mapping/             # Client mapping logic
+│   └── database/            # SQLite operations
+├── pkg/models/              # Data models
+├── .env                     # API credentials (not committed)
+└── go.mod                   # Dependencies
+```
 
-### Extending Client Mapping
+### Building
 
-The fuzzy matching algorithm in `internal/mapping/service.go` can be customized for better automatic client mapping.
+```bash
+go mod tidy
+go build -o slide-integrator.exe ./cmd/slide-integrator
+```
 
-## Production Ready!
+### Testing
 
-✅ **Complete Integration** - Handles full alert-to-ticket lifecycle
-✅ **Bidirectional Sync** - Works regardless of where closure originates
-✅ **Rich Templates** - Includes all relevant alert information
-✅ **Interactive Setup** - Easy configuration via TUI
-✅ **Robust Error Handling** - Comprehensive logging and error recovery
-✅ **Database Persistence** - SQLite for reliable data storage
+```bash
+# Test API connectivity
+./slide-integrator.exe -show-mappings
 
-Just configure your API credentials in `.env` and deploy!
+# Test web UI
+./slide-integrator.exe -web
+# Open http://localhost:8080
+```
+
+## FAQ
+
+**Q: Does this work for single-tenant Slide accounts?**
+A: Yes! If each Slide client is a separate account, the mapping is simpler.
+
+**Q: Can I customize which alert types create tickets?**
+A: Currently all alerts create tickets. Future enhancement planned.
+
+**Q: What happens if I delete a mapping?**
+A: New alerts for that client won't create tickets until you re-map.
+
+**Q: Can I run this without the web UI?**
+A: Yes, use `./slide-integrator.exe` (no `-web` flag) but you'll need to configure via CLI first.
+
+**Q: How do I backup the database?**
+A: Copy `slide_cw_integration.db` file periodically.
+
+**Q: Does this support multiple Slide accounts?**
+A: Not currently - one Slide account per instance. Run multiple instances if needed.
+
+## Support
+
+- **Issues:** https://github.com/your-repo/issues
+- **Slide API Docs:** https://docs.slide.tech
+- **ConnectWise API Docs:** https://developer.connectwise.com
+
+## License
+
+[Your License Here]
+
+## Credits
+
+Built for MSPs who are tired of manually creating tickets for backup failures.
+
+Code review and enhancements by Claude Sonnet 4.5.

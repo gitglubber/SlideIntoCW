@@ -5,14 +5,11 @@ import (
 	"log"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/joho/godotenv"
 	"slide-cw-integration/internal/connectwise"
 	"slide-cw-integration/internal/database"
 	"slide-cw-integration/internal/mapping"
 	"slide-cw-integration/internal/slide"
-	"slide-cw-integration/internal/tui"
-	"slide-cw-integration/pkg/models"
 )
 
 func runMapClients() error {
@@ -68,89 +65,13 @@ func runMapClients() error {
 }
 
 func runInteractiveMapping() error {
-	// Load environment variables
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, using environment variables")
-	}
-
-	// Initialize database
-	db, err := database.Initialize()
-	if err != nil {
-		return fmt.Errorf("failed to initialize database: %w", err)
-	}
-	defer db.Close()
-
-	// Initialize API clients
-	slideClient := slide.NewClient(
-		os.Getenv("SLIDE_API_URL"),
-		os.Getenv("SLIDE_API_KEY"),
-	)
-
-	cwClient := connectwise.NewClient(
-		os.Getenv("CONNECTWISE_API_URL"),
-		os.Getenv("CONNECTWISE_COMPANY_ID"),
-		os.Getenv("CONNECTWISE_PUBLIC_KEY"),
-		os.Getenv("CONNECTWISE_PRIVATE_KEY"),
-		os.Getenv("CONNECTWISE_CLIENT_ID"),
-	)
-
-	// Get clients from both APIs
-	log.Println("Fetching clients from both APIs...")
-
-	slideClients, err := slideClient.GetClients()
-	if err != nil {
-		return fmt.Errorf("failed to get Slide clients: %w", err)
-	}
-
-	cwClients, err := cwClient.GetClients()
-	if err != nil {
-		return fmt.Errorf("failed to get ConnectWise clients: %w", err)
-	}
-
-	// Get existing mappings
-	mappingService := mapping.NewService(db)
-	existingMappings := make(map[string]*models.ClientMapping)
-	for _, slideClient := range slideClients {
-		if mapping, err := mappingService.GetClientMapping(slideClient.ID); err == nil && mapping != nil {
-			existingMappings[slideClient.ID] = mapping
-		}
-	}
-
-	// Create TUI model
-	model := tui.NewMappingModel(
-		slideClients,
-		cwClients,
-		existingMappings,
-		func(slideClientID string, cwClientID int) error {
-			// Find the client names for the mapping
-			var slideClientName, cwClientName string
-			for _, sc := range slideClients {
-				if sc.ID == slideClientID {
-					slideClientName = sc.Name
-					break
-				}
-			}
-			for _, cc := range cwClients {
-				if cc.ID == cwClientID {
-					cwClientName = cc.Name
-					break
-				}
-			}
-
-			mapping := &models.ClientMapping{
-				SlideClientID:   slideClientID,
-				SlideClientName: slideClientName,
-				ConnectWiseID:   cwClientID,
-				ConnectWiseName: cwClientName,
-			}
-			return mappingService.SaveClientMapping(mapping)
-		},
-	)
-
-	// Run the TUI
-	p := tea.NewProgram(model, tea.WithAltScreen())
-	_, err = p.Run()
-	return err
+	fmt.Println("⚠️  Interactive TUI mapping has been removed.")
+	fmt.Println("Please use the web UI instead:")
+	fmt.Println("")
+	fmt.Println("  ./slide-integrator.exe -web")
+	fmt.Println("")
+	fmt.Println("Then open http://localhost:8080 in your browser and go to the 'Client Mappings' tab.")
+	return nil
 }
 
 func showMappings() error {
@@ -219,89 +140,28 @@ func clearMappings() error {
 }
 
 func runTicketingSetup() error {
-	// Load environment variables
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, using environment variables")
-	}
-
-	// Initialize database
-	db, err := database.Initialize()
-	if err != nil {
-		return fmt.Errorf("failed to initialize database: %w", err)
-	}
-	defer db.Close()
-
-	// Initialize ConnectWise client
-	cwClient := connectwise.NewClient(
-		os.Getenv("CONNECTWISE_API_URL"),
-		os.Getenv("CONNECTWISE_COMPANY_ID"),
-		os.Getenv("CONNECTWISE_PUBLIC_KEY"),
-		os.Getenv("CONNECTWISE_PRIVATE_KEY"),
-		os.Getenv("CONNECTWISE_CLIENT_ID"),
-	)
-
-	log.Println("Fetching ConnectWise configuration data...")
-
-	// Fetch boards, priorities, and members
-	boards, err := cwClient.GetBoards()
-	if err != nil {
-		return fmt.Errorf("failed to get boards: %w", err)
-	}
-
-	priorities, err := cwClient.GetPriorities()
-	if err != nil {
-		return fmt.Errorf("failed to get priorities: %w", err)
-	}
-
-	members, err := cwClient.GetMembers()
-	if err != nil {
-		return fmt.Errorf("failed to get members: %w", err)
-	}
-
-	log.Printf("Found %d boards, %d priorities, %d members", len(boards), len(priorities), len(members))
-
-	// Create TUI model
-	model := tui.NewTicketingModel(
-		boards,
-		priorities,
-		members,
-		func(config *models.TicketingConfig) error {
-			return db.SaveTicketingConfig(config)
-		},
-		func(boardID int) ([]models.ConnectWiseStatus, []models.ConnectWiseType, error) {
-			// Load statuses and types for the selected board
-			statuses, err := cwClient.GetStatuses(boardID)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get statuses for board %d: %w", boardID, err)
-			}
-
-			types, err := cwClient.GetTypes(boardID)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get types for board %d: %w", boardID, err)
-			}
-
-			log.Printf("Loaded %d statuses and %d types for board %d", len(statuses), len(types), boardID)
-			return statuses, types, nil
-		},
-	)
-
-	// Run the TUI
-	program := tea.NewProgram(model, tea.WithAltScreen())
-	_, err = program.Run()
-	return err
+	fmt.Println("⚠️  Interactive TUI ticketing setup has been removed.")
+	fmt.Println("Please use the web UI instead:")
+	fmt.Println("")
+	fmt.Println("  ./slide-integrator.exe -web")
+	fmt.Println("")
+	fmt.Println("Then open http://localhost:8080 in your browser and go to the 'Ticketing Config' tab.")
+	return nil
 }
 
 func showUsage() {
 	fmt.Println("Slide-ConnectWise Integration Tool")
 	fmt.Println("")
 	fmt.Println("Usage:")
-	fmt.Println("  slide-integrator                    # Run the alert monitoring service")
-	fmt.Println("  slide-integrator -web               # Start web UI server (recommended)")
+	fmt.Println("  slide-integrator -web               # Start web UI server (RECOMMENDED)")
 	fmt.Println("  slide-integrator -web -port 3000    # Start web UI on custom port")
-	fmt.Println("  slide-integrator -map-clients       # Auto-map Slide clients to ConnectWise clients")
-	fmt.Println("  slide-integrator -map-interactive   # Interactive TUI for manual client mapping")
+	fmt.Println("")
+	fmt.Println("CLI Commands:")
+	fmt.Println("  slide-integrator                    # Run alert monitoring service only (no UI)")
+	fmt.Println("  slide-integrator -map-clients       # Auto-map Slide clients to ConnectWise")
 	fmt.Println("  slide-integrator -show-mappings     # Show current client mappings")
 	fmt.Println("  slide-integrator -clear-mappings    # Clear all client mappings")
-	fmt.Println("  slide-integrator -setup-ticketing   # Interactive setup for ConnectWise ticketing configuration")
 	fmt.Println("  slide-integrator -h                 # Show this help")
+	fmt.Println("")
+	fmt.Println("Note: TUI commands (-map-interactive, -setup-ticketing) have been replaced by the web UI.")
 }

@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"slide-cw-integration/internal/connectwise"
@@ -26,6 +27,54 @@ type Server struct {
 	mappingService *mapping.Service
 	db             *database.DB
 	port           string
+}
+
+// matchDeviceToClient matches a device name to a client by checking name prefixes and initials
+func matchDeviceToClient(deviceName string, slideClients []models.SlideClient) *models.SlideClient {
+	if deviceName == "" {
+		return nil
+	}
+
+	deviceUpper := strings.ToUpper(deviceName)
+
+	// Extract prefix (letters before hyphen or numbers)
+	var prefix string
+	for i, ch := range deviceUpper {
+		if ch == '-' || (ch >= '0' && ch <= '9') {
+			prefix = deviceUpper[:i]
+			break
+		}
+	}
+
+	if prefix == "" {
+		prefix = deviceUpper
+	}
+
+	// Try to match prefix to client name initials or starts-with
+	for i := range slideClients {
+		client := &slideClients[i]
+		clientUpper := strings.ToUpper(client.Name)
+
+		// Check if client name starts with prefix
+		if strings.HasPrefix(clientUpper, prefix) {
+			return client
+		}
+
+		// Check if prefix matches initials
+		words := strings.Fields(clientUpper)
+		var initials string
+		for _, word := range words {
+			if len(word) > 0 && word != "LLC" && word != "INC" && word != "CORP" && word != "P.C." {
+				initials += string(word[0])
+			}
+		}
+
+		if initials == prefix {
+			return client
+		}
+	}
+
+	return nil
 }
 
 func NewServer(slideClient *slide.Client, cwClient *connectwise.Client, mappingService *mapping.Service, db *database.DB, port string) *Server {
@@ -405,48 +454,96 @@ func (s *Server) handleAlerts(w http.ResponseWriter, r *http.Request) {
 		devices = []models.SlideDevice{} // Continue with empty list
 	}
 
-	// Create device ID to client ID map
+	// Get all Slide clients
+	slideClients, err := s.slideClient.GetClients()
+	if err != nil {
+		log.Printf("Warning: failed to get clients for alert enrichment: %v", err)
+		slideClients = []models.SlideClient{}
+	}
+
+	// Create device ID to client ID map (devices have ClientID which maps to Slide clients)
 	deviceToClient := make(map[string]string)
 	for _, device := range devices {
-		deviceToClient[device.ID] = device.ClientID
+		if device.ClientID != "" {
+			deviceToClient[device.ID] = device.ClientID
+		}
+	}
+
+	// Create client ID to name map
+	clientIDToName := make(map[string]string)
+	for _, client := range slideClients {
+		clientIDToName[client.ID] = client.Name
 	}
 
 	// Enrich alerts with mapping info
 	var enrichedAlerts []map[string]interface{}
 	for _, alert := range alerts {
-		// Try to get client ID from alert, then from device lookup
-		clientID := alert.GetParsedClientID()
-		if clientID == "" && alert.DeviceID != "" {
-			// Look up client ID from device
-			if deviceClientID, ok := deviceToClient[alert.DeviceID]; ok {
-				clientID = deviceClientID
+		// IMPORTANT: For MSP accounts, the alert account_id is the MSP, NOT the end client
+		// Strategy 1: Try device ID lookup
+		// Strategy 2: Try matching device name to client by prefix/initials
+		// Strategy 3: Fall back to alert account (probably MSP account)
+
+		var realClientID string
+		var realClientName string
+		var matchMethod string
+
+		// Strategy 1: Device ID → Client ID lookup
+		if alert.DeviceID != "" {
+			if clientID, ok := deviceToClient[alert.DeviceID]; ok && clientID != "" {
+				realClientID = clientID
+				if name, ok := clientIDToName[clientID]; ok {
+					realClientName = name
+					matchMethod = "device_id"
+				}
 			}
+		}
+
+		// Strategy 2: Match device name to client by prefix/initials
+		if realClientID == "" {
+			deviceName := alert.GetParsedDeviceName()
+			if deviceName != "" {
+				matchedClient := matchDeviceToClient(deviceName, slideClients)
+				if matchedClient != nil {
+					realClientID = matchedClient.ID
+					realClientName = matchedClient.Name
+					matchMethod = "device_name"
+				}
+			}
+		}
+
+		// Strategy 3: Fall back to alert's account (MSP account - probably wrong)
+		if realClientID == "" {
+			realClientID = alert.GetParsedClientID()
+			realClientName = alert.GetParsedClientName()
+			matchMethod = "alert_account"
 		}
 
 		// Get the mapped ConnectWise company name
-		var clientName string
-		if clientID != "" {
-			mapping, _ := s.mappingService.GetClientMapping(clientID)
+		var cwCompanyName string
+		if realClientID != "" {
+			mapping, _ := s.mappingService.GetClientMapping(realClientID)
 			if mapping != nil {
-				clientName = mapping.ConnectWiseName
-			} else {
-				// Fallback: try to get name from alert fields or device info
-				clientName = alert.GetParsedClientName()
+				cwCompanyName = mapping.ConnectWiseName
 			}
 		}
 
-		enriched := map[string]interface{}{
-			"id":        alert.ID,
-			"type":      alert.Type,
-			"message":   alert.GetParsedMessage(),
-			"timestamp": alert.Timestamp,
-			"resolved":  alert.Resolved,
-			"deviceId":  alert.DeviceID,
-			"clientId":  clientID,
+		// If no CW mapping found, use the Slide client name
+		if cwCompanyName == "" {
+			cwCompanyName = realClientName
 		}
 
-		if clientName != "" {
-			enriched["clientName"] = clientName
+		enriched := map[string]interface{}{
+			"id":           alert.ID,
+			"type":         alert.Type,
+			"message":      alert.GetParsedMessage(),
+			"timestamp":    alert.Timestamp,
+			"resolved":     alert.Resolved,
+			"deviceId":     alert.DeviceID,
+			"deviceName":   alert.GetParsedDeviceName(),
+			"clientId":     realClientID,
+			"clientName":   cwCompanyName,
+			"slideClientName": realClientName,
+			"matchMethod":  matchMethod,
 		}
 
 		// Check if ticket exists
