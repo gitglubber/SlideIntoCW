@@ -28,7 +28,7 @@ func NewMonitor(slideClient *slide.Client, connectWise *connectwise.Client, mapp
 		connectWise:    connectWise,
 		mappingService: mappingService,
 		db:             db,
-		checkInterval:  2 * time.Minute, // Check every 5 minutes
+		checkInterval:  5 * time.Minute, // Check every 5 minutes
 		stopChan:       make(chan bool),
 	}
 }
