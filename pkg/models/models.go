@@ -150,6 +150,7 @@ func (a *SlideAlert) GetParsedAgentHostname() string {
 type SlideBackup struct {
 	ID           string    `json:"id"`
 	DeviceID     string    `json:"device_id"`
+	AgentID      string    `json:"agent_id"`
 	ClientID     string    `json:"client_id"`
 	Status       string    `json:"status"`
 	StartTime    time.Time `json:"start_time"`

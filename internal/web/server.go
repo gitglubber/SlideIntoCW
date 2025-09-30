@@ -18,6 +18,7 @@ import (
 	"slide-cw-integration/pkg/models"
 )
 
+//go:embed static
 var staticFiles embed.FS
 
 type Server struct {

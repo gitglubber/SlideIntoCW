@@ -114,13 +114,13 @@ func (m *Monitor) isAlertResolved(alert *models.SlideAlert) bool {
 			return false
 		}
 
-		// Find successful backups for this device after the alert timestamp
+		// Find successful backups for this agent after the alert timestamp
 		for _, backup := range backups {
-			if backup.DeviceID == alert.DeviceID &&
+			if backup.AgentID == alert.AgentID &&
 				backup.Success &&
 				backup.CompletedAt != nil &&
 				backup.CompletedAt.After(alert.Timestamp) {
-				log.Printf("Found successful backup %s after alert %s", backup.ID, alert.ID)
+				log.Printf("Found successful backup %s for agent %s after alert %s", backup.ID, alert.AgentID, alert.ID)
 				return true
 			}
 		}
