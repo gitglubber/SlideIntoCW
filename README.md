@@ -24,20 +24,20 @@ This application bridges **Slide Backup** (backup monitoring) and **ConnectWise 
 
 ### Prerequisites
 
-- Go 1.19+ (for building)
 - Slide API credentials (API URL + API Key)
 - ConnectWise Manage API credentials (URL, Company ID, Public Key, Private Key, Client ID)
+- **Optional:** Go 1.19+ (only if building from source)
 
 ### Installation
 
-1. **Clone and build:**
-   ```bash
-   git clone <your-repo-url>
-   cd SlideIntoCW
-   go build -o slide-integrator.exe ./cmd/slide-integrator
-   ```
+#### Option 1: Download Pre-built Binary (Windows)
 
-2. **Create `.env` file:**
+1. **Download the latest release:**
+   - Go to the [Releases page](https://github.com/your-repo/releases)
+   - Download `slide-integrator.exe` for Windows
+   - No compilation required!
+
+2. **Create `.env` file** (in same directory as .exe):
    ```bash
    # Slide API
    SLIDE_API_URL=https://api.slide.tech
@@ -51,12 +51,32 @@ This application bridges **Slide Backup** (backup monitoring) and **ConnectWise 
    CONNECTWISE_CLIENT_ID=your_client_id
    ```
 
-3. **Start the web UI:**
+3. **Run the application:**
    ```bash
-   ./slide-integrator.exe -web
+   # With Web UI (recommended)
+   slide-integrator.exe -web
+
+   # With Web UI on custom port
+   slide-integrator.exe -web -port 8001
+
+   # Without Web UI (service mode only)
+   slide-integrator.exe
    ```
 
-4. **Open browser:** http://localhost:8080
+4. **Open browser:**
+   - Default: http://localhost:8080
+   - Custom port: http://localhost:8001 (or whatever port you specified)
+
+#### Option 2: Build from Source
+
+1. **Clone and build:**
+   ```bash
+   git clone <your-repo-url>
+   cd SlideIntoCW
+   go build -o slide-integrator.exe ./cmd/slide-integrator
+   ```
+
+2. **Follow steps 2-4 from Option 1 above**
 
 ## Setup (First Time)
 
@@ -178,20 +198,36 @@ If you're an MSP with multiple clients under one Slide account:
 
 ## CLI Commands
 
+### Running the Application
+
 ```bash
-# Recommended - Start with Web UI
-./slide-integrator.exe -web
-./slide-integrator.exe -web -port 3000    # Custom port
+# With Web UI (recommended)
+slide-integrator.exe -web
+# → Starts web UI on http://localhost:8080
+# → Alert monitor runs in background
 
-# Service only (no UI)
-./slide-integrator.exe
+# With Web UI on custom port
+slide-integrator.exe -web -port 8001
+# → Starts web UI on http://localhost:8001
+# → Useful if port 8080 is already in use
 
-# Utility commands
-./slide-integrator.exe -map-clients       # Auto-map clients
-./slide-integrator.exe -show-mappings     # Show current mappings
-./slide-integrator.exe -clear-mappings    # Clear all mappings
-./slide-integrator.exe -h                 # Show help
+# Without Web UI (service mode only)
+slide-integrator.exe
+# → Runs alert monitor only
+# → No web interface
+# → All configuration via CLI commands
 ```
+
+### Utility Commands
+
+```bash
+slide-integrator.exe -map-clients       # Auto-map clients by name similarity
+slide-integrator.exe -show-mappings     # Display all current mappings
+slide-integrator.exe -clear-mappings    # Remove all client mappings
+slide-integrator.exe -h                 # Show help and available commands
+```
+
+**Note:** When running without the web UI, you must configure everything via CLI commands before the monitor can create tickets.
 
 ## Architecture
 
@@ -278,9 +314,17 @@ If you're an MSP with multiple clients under one Slide account:
 
 ### Port Already in Use
 
+**Problem:** Error message "address already in use" or web UI won't start
+
+**Solution:** Use a different port with the `-port` flag:
+
 ```bash
-./slide-integrator.exe -web -port 8081    # Try different port
+slide-integrator.exe -web -port 8081
+slide-integrator.exe -web -port 3000
+slide-integrator.exe -web -port 9090
 ```
+
+The default port is 8080. You can use any available port between 1024-65535.
 
 ## Production Deployment
 
