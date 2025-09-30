@@ -1,5 +1,7 @@
 # Slide-ConnectWise Integration
 
+## CW Client ID is required - if you don't have one - get one at developers.connectwise.com. 
+
 **Automated ticket management for MSPs** - Monitors Slide backup alerts and automatically creates ConnectWise tickets for your clients.
 
 ## What Does This Do?
@@ -45,10 +47,10 @@ This application bridges **Slide Backup** (backup monitoring) and **ConnectWise 
 
    # ConnectWise API
    CONNECTWISE_API_URL=https://your-instance.connectwisedev.com/v4_6_release/apis/3.0
-   CONNECTWISE_COMPANY_ID=your_company_id
-   CONNECTWISE_PUBLIC_KEY=your_public_key
-   CONNECTWISE_PRIVATE_KEY=your_private_key
-   CONNECTWISE_CLIENT_ID=your_client_id
+   CONNECTWISE_COMPANY_ID=your_company_id # company name
+   CONNECTWISE_PUBLIC_KEY=your_public_key # public key
+   CONNECTWISE_PRIVATE_KEY=your_private_key # private key
+   CONNECTWISE_CLIENT_ID=your_client_id # get from developers.connectwise.com
    ```
 
 3. **Run the application:**
@@ -66,6 +68,21 @@ This application bridges **Slide Backup** (backup monitoring) and **ConnectWise 
 4. **Open browser:**
    - Default: http://localhost:8080
    - Custom port: http://localhost:8001 (or whatever port you specified)
+
+## Ticket Template ##
+    - These are not pre-populated - you will need to fill them out. 
+
+** Summary Template: Slide alert {{client_name}} for {{device_name}} | {{alert_type}} **
+** Description Template: 
+New Slide Alert:
+
+Client: {{client_name}}
+Device: {{device_name}}
+
+Agent: {{agent_hostname}}
+Alert: {{alert_message}}
+Triggered: {{alert_timestamp}}
+**
 
 #### Option 2: Build from Source
 
@@ -450,7 +467,7 @@ A: Not currently - one Slide account per instance. Run multiple instances if nee
 
 ## License
 
-[Your License Here]
+Do Whatever You want with it. GO SLIDE!
 
 ## Credits
 
