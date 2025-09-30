@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -79,12 +80,22 @@ func (c *Client) GetBackups() ([]models.SlideBackup, error) {
 }
 
 func (c *Client) CloseAlert(alertID string) error {
+	// Try setting both status and resolved fields
 	payload := map[string]interface{}{
-		"status": "resolved",
+		"status":   "resolved",
+		"resolved": true,
 	}
 
 	endpoint := fmt.Sprintf("/v1/alert/%s", alertID)
-	return c.makeRequest("PATCH", endpoint, payload, nil)
+
+	log.Printf("Closing alert %s with payload: %+v", alertID, payload)
+	err := c.makeRequest("PATCH", endpoint, payload, nil)
+	if err != nil {
+		log.Printf("Error closing alert %s: %v", alertID, err)
+		return err
+	}
+	log.Printf("Successfully sent close request for alert %s", alertID)
+	return nil
 }
 
 func (c *Client) GetDevice(deviceID string) (*models.SlideDevice, error) {

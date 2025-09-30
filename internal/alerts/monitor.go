@@ -72,9 +72,11 @@ func (m *Monitor) processAlerts() error {
 
 	for _, alert := range alerts {
 		if alert.Resolved {
+			log.Printf("Skipping resolved alert: %s", alert.ID)
 			continue // Skip already resolved alerts
 		}
 
+		log.Printf("Processing unresolved alert: %s (Resolved field: %t)", alert.ID, alert.Resolved)
 		if err := m.handleAlert(&alert); err != nil {
 			log.Printf("Error handling alert %s: %v", alert.ID, err)
 		}
@@ -164,11 +166,17 @@ func (m *Monitor) ensureTicketExists(alert *models.SlideAlert) error {
 		return nil
 	}
 
-	// Get ConnectWise client ID for this alert's client
-	clientID := alert.GetParsedClientID()
-	cwClientID, err := m.mappingService.GetConnectWiseClientID(clientID)
+	// Resolve the actual Slide client ID (not MSP account ID)
+	// For MSP accounts, alerts contain the MSP account_id, not the end client
+	realClientID, err := m.resolveAlertClient(alert)
 	if err != nil {
-		return fmt.Errorf("failed to get ConnectWise client ID for alert: %w", err)
+		return fmt.Errorf("failed to resolve client for alert: %w", err)
+	}
+
+	// Get ConnectWise client ID for this alert's client
+	cwClientID, err := m.mappingService.GetConnectWiseClientID(realClientID)
+	if err != nil {
+		return fmt.Errorf("failed to get ConnectWise client ID for alert (client: %s): %w", realClientID, err)
 	}
 
 	// Get ticketing configuration
@@ -187,9 +195,9 @@ func (m *Monitor) ensureTicketExists(alert *models.SlideAlert) error {
 
 	// Get the mapped ConnectWise client name (not the Slide account name)
 	var clientName string
-	mapping, err := m.mappingService.GetClientMapping(clientID)
+	mapping, err := m.mappingService.GetClientMapping(realClientID)
 	if err != nil || mapping == nil {
-		log.Printf("Warning: no client mapping found for %s, using parsed name", clientID)
+		log.Printf("Warning: no client mapping found for %s, using parsed name", realClientID)
 		clientName = alert.GetParsedClientName()
 	} else {
 		// Use the ConnectWise client name from the mapping
@@ -199,7 +207,7 @@ func (m *Monitor) ensureTicketExists(alert *models.SlideAlert) error {
 
 	// Fallback to resolving device name via API if not available
 	if deviceName == "" {
-		_, resolvedDeviceName, err := m.resolveNames(clientID, alert.DeviceID)
+		_, resolvedDeviceName, err := m.resolveNames(realClientID, alert.DeviceID)
 		if err != nil {
 			log.Printf("Warning: failed to resolve device name for alert %s: %v", alert.ID, err)
 		} else {
@@ -209,7 +217,7 @@ func (m *Monitor) ensureTicketExists(alert *models.SlideAlert) error {
 
 	// Final fallback to IDs
 	if clientName == "" {
-		clientName = clientID
+		clientName = realClientID
 	}
 	if deviceName == "" {
 		deviceName = alert.DeviceID
@@ -241,6 +249,100 @@ func (m *Monitor) ensureTicketExists(alert *models.SlideAlert) error {
 	}
 
 	log.Printf("Created ConnectWise ticket %d for alert %s using configuration", ticket.ID, alert.ID)
+	return nil
+}
+
+// resolveAlertClient determines the actual Slide client ID for an alert
+// For MSP accounts, alerts contain the MSP account_id, not the end client ID
+// This function uses device lookup and smart matching to find the real client
+func (m *Monitor) resolveAlertClient(alert *models.SlideAlert) (string, error) {
+	// Strategy 1: Try device ID → client ID lookup
+	if alert.DeviceID != "" {
+		devices, err := m.slideClient.GetDevices()
+		if err != nil {
+			log.Printf("Warning: failed to get devices for client resolution: %v", err)
+		} else {
+			for _, device := range devices {
+				if device.ID == alert.DeviceID && device.ClientID != "" {
+					log.Printf("Resolved client via device ID: %s → %s", alert.DeviceID, device.ClientID)
+					return device.ClientID, nil
+				}
+			}
+		}
+	}
+
+	// Strategy 2: Smart device name matching
+	deviceName := alert.GetParsedDeviceName()
+	if deviceName != "" {
+		clients, err := m.slideClient.GetClients()
+		if err != nil {
+			log.Printf("Warning: failed to get clients for name matching: %v", err)
+		} else {
+			matchedClient := m.matchDeviceToClient(deviceName, clients)
+			if matchedClient != nil {
+				log.Printf("Resolved client via device name matching: %s → %s (%s)", deviceName, matchedClient.ID, matchedClient.Name)
+				return matchedClient.ID, nil
+			}
+		}
+	}
+
+	// Strategy 3: Fall back to alert's account ID (MSP account - probably wrong but better than nothing)
+	clientID := alert.GetParsedClientID()
+	log.Printf("Warning: Could not resolve actual client, falling back to alert account: %s", clientID)
+	return clientID, nil
+}
+
+// matchDeviceToClient matches a device name to a client using prefix/initial matching
+// Example: "CVC-S5TB" → "Center Vision Clinic" (matches "CVC" to initials)
+func (m *Monitor) matchDeviceToClient(deviceName string, clients []models.SlideClient) *models.SlideClient {
+	if deviceName == "" {
+		return nil
+	}
+
+	deviceUpper := strings.ToUpper(deviceName)
+
+	// Extract prefix (letters before hyphen or numbers)
+	var prefix string
+	for i, ch := range deviceUpper {
+		if ch == '-' || (ch >= '0' && ch <= '9') {
+			prefix = deviceUpper[:i]
+			break
+		}
+	}
+
+	if prefix == "" {
+		prefix = deviceUpper
+	}
+
+	log.Printf("Extracted device prefix: '%s' from device name: '%s'", prefix, deviceName)
+
+	// Try to match prefix to client name initials or starts-with
+	for i := range clients {
+		client := &clients[i]
+		clientUpper := strings.ToUpper(client.Name)
+
+		// Check if client name starts with prefix
+		if strings.HasPrefix(clientUpper, prefix) {
+			log.Printf("Matched device prefix '%s' to client '%s' (starts-with)", prefix, client.Name)
+			return client
+		}
+
+		// Check if prefix matches initials
+		words := strings.Fields(clientUpper)
+		var initials string
+		for _, word := range words {
+			if len(word) > 0 && word != "LLC" && word != "INC" && word != "CORP" && word != "P.C." {
+				initials += string(word[0])
+			}
+		}
+
+		if initials == prefix {
+			log.Printf("Matched device prefix '%s' to client '%s' (initials: %s)", prefix, client.Name, initials)
+			return client
+		}
+	}
+
+	log.Printf("No client match found for device prefix: '%s'", prefix)
 	return nil
 }
 
@@ -346,11 +448,15 @@ func (m *Monitor) processClosedTickets() error {
 
 	// Check each ticket to see if it's been closed in ConnectWise
 	for _, mapping := range openMappings {
+		log.Printf("Checking ConnectWise ticket %d status for alert %s", mapping.TicketID, mapping.AlertID)
 		ticket, err := m.connectWise.GetTicket(mapping.TicketID)
 		if err != nil {
 			log.Printf("Error getting ticket %d status: %v", mapping.TicketID, err)
 			continue
 		}
+
+		log.Printf("Ticket %d status: '%s', closedStatus: %t, IsClosed(): %t",
+			mapping.TicketID, ticket.Status.Name, ticket.Status.ClosedStatus, ticket.IsClosed())
 
 		if ticket.IsClosed() {
 			log.Printf("Ticket %d is closed in ConnectWise (status: '%s', closedStatus: %t), closing corresponding Slide alert %s",

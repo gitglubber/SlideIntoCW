@@ -187,7 +187,11 @@ func (t *ConnectWiseTicket) IsClosed() bool {
 	}
 
 	// Also check for common closed status names (case-insensitive)
+	// Strip special characters like '>' from status names
 	statusName := strings.ToLower(strings.TrimSpace(t.Status.Name))
+	statusName = strings.TrimLeft(statusName, ">")
+	statusName = strings.TrimSpace(statusName)
+
 	closedStatuses := []string{
 		"closed",
 		"cancelled",

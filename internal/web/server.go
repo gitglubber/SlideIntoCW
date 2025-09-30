@@ -129,6 +129,7 @@ func (s *Server) Start() error {
 
 	// Tickets
 	http.HandleFunc("/api/tickets/mappings", s.handleTicketMappings)
+	http.HandleFunc("/api/admin/reset-mapping", s.handleResetMapping)
 
 	log.Printf("Web UI server starting on http://localhost:%s", s.port)
 	return http.ListenAndServe(":"+s.port, nil)
@@ -579,6 +580,32 @@ func (s *Server) handleCloseAlert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+func (s *Server) handleResetMapping(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		AlertID string `json:"alertId"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Reset the closed_at timestamp to NULL so the monitoring loop will try again
+	_, err := s.db.GetConn().Exec("UPDATE alert_ticket_mappings SET closed_at = NULL WHERE alert_id = ?", req.AlertID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("Reset mapping for alert: %s", req.AlertID)
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
