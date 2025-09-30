@@ -60,12 +60,16 @@ func matchDeviceToClient(deviceName string, slideClients []models.SlideClient) *
 			return client
 		}
 
-		// Check if prefix matches initials
+		// Check if prefix matches initials (strip special chars like &)
 		words := strings.Fields(clientUpper)
 		var initials string
 		for _, word := range words {
-			if len(word) > 0 && word != "LLC" && word != "INC" && word != "CORP" && word != "P.C." {
-				initials += string(word[0])
+			if len(word) > 0 && word != "LLC" && word != "INC" && word != "CORP" && word != "P.C." && word != "&" {
+				// Get first letter, skip if it's a special character
+				firstChar := rune(word[0])
+				if (firstChar >= 'A' && firstChar <= 'Z') || (firstChar >= '0' && firstChar <= '9') {
+					initials += string(firstChar)
+				}
 			}
 		}
 
