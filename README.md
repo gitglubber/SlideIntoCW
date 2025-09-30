@@ -243,6 +243,23 @@ If you're an MSP with multiple clients under one Slide account:
 2. Verify client mappings are correct in web UI
 3. Look at alert's `matchMethod` field (shown in browser console)
 
+### Tickets Created Under Wrong Company
+
+**Problem:** Tickets were created under your MSP account instead of the end client
+
+**Cause:** This happens when:
+- The client wasn't mapped in ConnectWise at the time the alert arrived
+- Device name doesn't match any client name patterns (e.g., no prefix like "BM-" or "CVC-")
+- Smart matching couldn't determine the correct client
+
+**Default Behavior:** If the app cannot determine the correct client, it will fall back to using the MSP account ID from the alert, which creates the ticket under your MSP company in ConnectWise.
+
+**Solution:**
+1. Ensure all clients are properly mapped (Web UI → Client Mappings)
+2. Use consistent device naming (client initials + hyphen + identifier)
+3. Old tickets will remain under the MSP account (you may need to manually reassign them)
+4. New alerts will be routed correctly once mappings are in place
+
 ### Tickets Not Being Created
 
 **Checklist:**
