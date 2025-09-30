@@ -155,7 +155,33 @@ func (c *Client) UpdateTicket(ticketID int, status string) error {
 }
 
 func (c *Client) CloseTicket(ticketID int) error {
-	return c.UpdateTicket(ticketID, "Closed")
+	// Get the ticket first to check if already closed
+	ticket, err := c.GetTicket(ticketID)
+	if err != nil {
+		return fmt.Errorf("failed to get ticket: %w", err)
+	}
+
+	// Check if already closed
+	if ticket.IsClosed() {
+		log.Printf("Ticket %d is already closed", ticketID)
+		return nil
+	}
+
+	// Try common closed status names
+	// ConnectWise boards typically have status names like "Closed", ">Closed", "Complete", etc.
+	closedStatuses := []string{">Closed", "Closed", "Complete", "Completed", "Resolved"}
+
+	for _, statusName := range closedStatuses {
+		log.Printf("Attempting to close ticket %d with status: %s", ticketID, statusName)
+		err := c.UpdateTicket(ticketID, statusName)
+		if err == nil {
+			log.Printf("Successfully closed ticket %d with status: %s", ticketID, statusName)
+			return nil
+		}
+		log.Printf("Failed to close with status '%s': %v", statusName, err)
+	}
+
+	return fmt.Errorf("failed to close ticket %d with any known closed status", ticketID)
 }
 
 // GetTicket retrieves a specific ticket by ID

@@ -21,14 +21,14 @@ type Monitor struct {
 	checkInterval   time.Duration
 	stopChan        chan bool
 }
-
+	//adding debug timing - 2 minutes
 func NewMonitor(slideClient *slide.Client, connectWise *connectwise.Client, mappingService *mapping.Service, db *database.DB) *Monitor {
 	return &Monitor{
 		slideClient:    slideClient,
 		connectWise:    connectWise,
 		mappingService: mappingService,
 		db:             db,
-		checkInterval:  5 * time.Minute, // Check every 5 minutes
+		checkInterval:  2 * time.Minute, // Check every 5 minutes
 		stopChan:       make(chan bool),
 	}
 }
@@ -69,11 +69,15 @@ func (m *Monitor) processAlerts() error {
 	if err != nil {
 		return fmt.Errorf("failed to get alerts: %w", err)
 	}
-
+	// Removed skipped alerts. Was causing issues with closure from slide.
 	for _, alert := range alerts {
 		if alert.Resolved {
-			log.Printf("Skipping resolved alert: %s", alert.ID)
-			continue // Skip already resolved alerts
+			log.Printf("Alert %s is resolved in Slide, checking if CW ticket needs closing...", alert.ID)
+			// Check if there's a corresponding CW ticket that needs to be closed
+			if err := m.processResolvedAlert(&alert); err != nil {
+				log.Printf("Error processing resolved alert %s: %v", alert.ID, err)
+			}
+			continue
 		}
 
 		log.Printf("Processing unresolved alert: %s (Resolved field: %t)", alert.ID, alert.Resolved)
@@ -151,6 +155,42 @@ func (m *Monitor) closeAlert(alert *models.SlideAlert) error {
 	}
 
 	log.Printf("Alert %s closed successfully", alert.ID)
+	return nil
+}
+
+func (m *Monitor) processResolvedAlert(alert *models.SlideAlert) error {
+	// Check if there's a ticket mapping for this resolved alert 
+	mapping, err := m.mappingService.GetAlertTicketMapping(alert.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get alert-ticket mapping: %w", err)
+	}
+
+	
+	if mapping == nil {
+		log.Printf("No ticket mapping found for resolved alert %s", alert.ID)
+		return nil
+	}
+
+	// If mapping is already closed, nothing to do
+	if mapping.ClosedAt != nil {
+		log.Printf("Ticket mapping for alert %s already closed", alert.ID)
+		return nil
+	}
+
+	// Close the ConnectWise ticket
+	if err := m.connectWise.CloseTicket(mapping.TicketID); err != nil {
+		log.Printf("Failed to close ConnectWise ticket %d: %v", mapping.TicketID, err)
+		return err
+	}
+
+	log.Printf("Closed ConnectWise ticket %d for resolved alert %s", mapping.TicketID, alert.ID)
+
+	// Mark the mapping as closed in database
+	if err := m.mappingService.CloseAlertTicketMapping(alert.ID); err != nil {
+		log.Printf("Failed to update alert-ticket mapping in database: %v", err)
+		return err
+	}
+
 	return nil
 }
 
