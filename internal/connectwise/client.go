@@ -8,7 +8,7 @@ import (
 	"log"
 	"net/http"
 	"time"
-
+	"io"
 	"slide-cw-integration/pkg/models"
 )
 
@@ -144,14 +144,25 @@ func (c *Client) CreateTicketWithConfig(companyID int, summary, description stri
 	log.Printf("Created ticket %d for company %d (%s)", result.ID, result.Company.ID, result.Company.Name)
 	return &result, nil
 }
+//CW error - we need to define the patch array
+type PatchDoc struct {
+	Op string `json:"op"`
+	Path string `json:"path"`
+	Value interface{} `json:"value"`
+}
 
+//endPatch
 func (c *Client) UpdateTicket(ticketID int, status string) error {
-	update := map[string]interface{}{
-		"status": StatusRef{Name: status},
+	newStatusValue := StatusRef{Name: status}
+	patchOp := PatchDoc{
+		Op: "replace",
+		Path: "/status",
+		Value: newStatusValue,
 	}
+	patchDocument :=[]PatchDoc{patchOp}
 
 	endpoint := fmt.Sprintf("/service/tickets/%d", ticketID)
-	return c.makeRequest("PATCH", endpoint, update, nil)
+	return c.makeRequest("PATCH", endpoint, patchDocument, nil)
 }
 
 func (c *Client) CloseTicket(ticketID int) error {
@@ -167,7 +178,7 @@ func (c *Client) CloseTicket(ticketID int) error {
 		return nil
 	}
 
-	// Try common closed status names
+	// Try common closed status names - Claude fail.
 	// ConnectWise boards typically have status names like "Closed", ">Closed", "Complete", etc.
 	closedStatuses := []string{">Closed", "Closed", "Complete", "Completed", "Resolved"}
 
@@ -386,7 +397,11 @@ func (c *Client) makeRequest(method, endpoint string, payload interface{}, resul
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			b, _ := io.ReadAll(resp.Body)
+			log.Printf("Go_Go_Go")
+			fmt.Println(string(b))
 		return fmt.Errorf("API request failed with status: %d", resp.StatusCode)
+
 	}
 
 	if result != nil {
