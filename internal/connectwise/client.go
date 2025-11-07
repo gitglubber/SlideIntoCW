@@ -5,11 +5,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
-	"time"
-	"io"
 	"slide-cw-integration/pkg/models"
+	"time"
 )
 
 type Client struct {
@@ -26,13 +26,13 @@ type CompanyResponse struct {
 }
 
 type TicketCreateRequest struct {
-	Summary     string `json:"summary"`
-	Company     CompanyRef `json:"company"`
-	Board       BoardRef `json:"board"`
-	Status      StatusRef `json:"status,omitempty"`
+	Summary     string      `json:"summary"`
+	Company     CompanyRef  `json:"company"`
+	Board       BoardRef    `json:"board"`
+	Status      StatusRef   `json:"status,omitempty"`
 	Priority    PriorityRef `json:"priority,omitempty"`
-	Type        TypeRef `json:"type,omitempty"`
-	Description string `json:"initialDescription,omitempty"`
+	Type        TypeRef     `json:"type,omitempty"`
+	Description string      `json:"initialDescription,omitempty"`
 }
 
 type CompanyRef struct {
@@ -105,12 +105,12 @@ func (c *Client) GetClients() ([]models.ConnectWiseClient, error) {
 
 func (c *Client) CreateTicket(companyID int, summary, description string) (*models.ConnectWiseTicket, error) {
 	ticket := TicketCreateRequest{
-		Summary: summary,
-		Company: CompanyRef{ID: companyID},
-		Board:   BoardRef{Name: "Service Board"}, // Default board
-		Status:  StatusRef{Name: "New"},
-		Priority: PriorityRef{Name: "Medium"},
-		Type:     TypeRef{Name: "Issue"},
+		Summary:     summary,
+		Company:     CompanyRef{ID: companyID},
+		Board:       BoardRef{Name: "Service Board"}, // Default board
+		Status:      StatusRef{Name: "New"},
+		Priority:    PriorityRef{Name: "Medium"},
+		Type:        TypeRef{Name: "Issue"},
 		Description: description,
 	}
 
@@ -123,12 +123,12 @@ func (c *Client) CreateTicket(companyID int, summary, description string) (*mode
 
 func (c *Client) CreateTicketWithConfig(companyID int, summary, description string, config *models.TicketingConfig) (*models.ConnectWiseTicket, error) {
 	ticket := TicketCreateRequest{
-		Summary: summary,
-		Company: CompanyRef{ID: companyID},
-		Board:   BoardRef{Name: config.BoardName},
-		Status:  StatusRef{Name: config.StatusName},
-		Priority: PriorityRef{Name: config.PriorityName},
-		Type:     TypeRef{Name: config.TypeName},
+		Summary:     summary,
+		Company:     CompanyRef{ID: companyID},
+		Board:       BoardRef{Name: config.BoardName},
+		Status:      StatusRef{Name: config.StatusName},
+		Priority:    PriorityRef{Name: config.PriorityName},
+		Type:        TypeRef{Name: config.TypeName},
 		Description: description,
 	}
 
@@ -144,22 +144,23 @@ func (c *Client) CreateTicketWithConfig(companyID int, summary, description stri
 	log.Printf("Created ticket %d for company %d (%s)", result.ID, result.Company.ID, result.Company.Name)
 	return &result, nil
 }
-//CW error - we need to define the patch array
+
+// CW error - we need to define the patch array
 type PatchDoc struct {
-	Op string `json:"op"`
-	Path string `json:"path"`
+	Op    string      `json:"op"`
+	Path  string      `json:"path"`
 	Value interface{} `json:"value"`
 }
 
-//endPatch
+// endPatch
 func (c *Client) UpdateTicket(ticketID int, status string) error {
 	newStatusValue := StatusRef{Name: status}
 	patchOp := PatchDoc{
-		Op: "replace",
-		Path: "/status",
+		Op:    "replace",
+		Path:  "/status",
 		Value: newStatusValue,
 	}
-	patchDocument :=[]PatchDoc{patchOp}
+	patchDocument := []PatchDoc{patchOp}
 
 	endpoint := fmt.Sprintf("/service/tickets/%d", ticketID)
 	return c.makeRequest("PATCH", endpoint, patchDocument, nil)
@@ -397,11 +398,9 @@ func (c *Client) makeRequest(method, endpoint string, payload interface{}, resul
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			b, _ := io.ReadAll(resp.Body)
-			log.Printf("Go_Go_Go")
-			fmt.Println(string(b))
-		return fmt.Errorf("API request failed with status: %d", resp.StatusCode)
-
+		b, _ := io.ReadAll(resp.Body)
+		log.Printf("ConnectWise API error (status %d): %s", resp.StatusCode, string(b))
+		return fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(b))
 	}
 
 	if result != nil {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -31,6 +32,10 @@ type AlertResponse struct {
 
 type BackupResponse struct {
 	Data []models.SlideBackup `json:"data"`
+}
+
+type SingleDeviceResponse struct {
+	Data models.SlideDevice `json:"data"`
 }
 
 func NewClient(baseURL, apiKey string) *Client {
@@ -100,11 +105,11 @@ func (c *Client) CloseAlert(alertID string) error {
 
 func (c *Client) GetDevice(deviceID string) (*models.SlideDevice, error) {
 	endpoint := fmt.Sprintf("/v1/device/%s", deviceID)
-	var device models.SlideDevice
-	if err := c.makeRequest("GET", endpoint, nil, &device); err != nil {
+	var response SingleDeviceResponse
+	if err := c.makeRequest("GET", endpoint, nil, &response); err != nil {
 		return nil, fmt.Errorf("failed to get device %s: %w", deviceID, err)
 	}
-	return &device, nil
+	return &response.Data, nil
 }
 
 func (c *Client) makeRequest(method, endpoint string, payload interface{}, result interface{}) error {
@@ -134,7 +139,9 @@ func (c *Client) makeRequest(method, endpoint string, payload interface{}, resul
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("API request failed with status: %d", resp.StatusCode)
+		b, _ := io.ReadAll(resp.Body)
+		log.Printf("Slide API error (status %d): %s", resp.StatusCode, string(b))
+		return fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(b))
 	}
 
 	if result != nil {
