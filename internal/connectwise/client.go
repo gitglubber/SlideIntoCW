@@ -5,20 +5,21 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
-	"time"
-	"io"
 	"slide-cw-integration/pkg/models"
+	"time"
 )
 
 type Client struct {
-	baseURL    string
-	companyID  string
-	publicKey  string
-	privateKey string
-	clientID   string
-	httpClient *http.Client
+	baseURL      string
+	companyID    string
+	publicKey    string
+	privateKey   string
+	clientID     string
+	httpClient   *http.Client
+	closedStatus string
 }
 
 type CompanyResponse struct {
@@ -26,13 +27,13 @@ type CompanyResponse struct {
 }
 
 type TicketCreateRequest struct {
-	Summary     string `json:"summary"`
-	Company     CompanyRef `json:"company"`
-	Board       BoardRef `json:"board"`
-	Status      StatusRef `json:"status,omitempty"`
+	Summary     string      `json:"summary"`
+	Company     CompanyRef  `json:"company"`
+	Board       BoardRef    `json:"board"`
+	Status      StatusRef   `json:"status,omitempty"`
 	Priority    PriorityRef `json:"priority,omitempty"`
-	Type        TypeRef `json:"type,omitempty"`
-	Description string `json:"initialDescription,omitempty"`
+	Type        TypeRef     `json:"type,omitempty"`
+	Description string      `json:"initialDescription,omitempty"`
 }
 
 type CompanyRef struct {
@@ -55,13 +56,14 @@ type TypeRef struct {
 	Name string `json:"name"`
 }
 
-func NewClient(baseURL, companyID, publicKey, privateKey, clientID string) *Client {
+func NewClient(baseURL, companyID, publicKey, privateKey, clientID string, closedStatus string) *Client {
 	return &Client{
-		baseURL:    baseURL,
-		companyID:  companyID,
-		publicKey:  publicKey,
-		privateKey: privateKey,
-		clientID:   clientID,
+		baseURL:      baseURL,
+		companyID:    companyID,
+		publicKey:    publicKey,
+		privateKey:   privateKey,
+		clientID:     clientID,
+		closedStatus: closedStatus,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -105,12 +107,12 @@ func (c *Client) GetClients() ([]models.ConnectWiseClient, error) {
 
 func (c *Client) CreateTicket(companyID int, summary, description string) (*models.ConnectWiseTicket, error) {
 	ticket := TicketCreateRequest{
-		Summary: summary,
-		Company: CompanyRef{ID: companyID},
-		Board:   BoardRef{Name: "Service Board"}, // Default board
-		Status:  StatusRef{Name: "New"},
-		Priority: PriorityRef{Name: "Medium"},
-		Type:     TypeRef{Name: "Issue"},
+		Summary:     summary,
+		Company:     CompanyRef{ID: companyID},
+		Board:       BoardRef{Name: "Service Board"}, // Default board
+		Status:      StatusRef{Name: "New"},
+		Priority:    PriorityRef{Name: "Medium"},
+		Type:        TypeRef{Name: "Issue"},
 		Description: description,
 	}
 
@@ -123,12 +125,12 @@ func (c *Client) CreateTicket(companyID int, summary, description string) (*mode
 
 func (c *Client) CreateTicketWithConfig(companyID int, summary, description string, config *models.TicketingConfig) (*models.ConnectWiseTicket, error) {
 	ticket := TicketCreateRequest{
-		Summary: summary,
-		Company: CompanyRef{ID: companyID},
-		Board:   BoardRef{Name: config.BoardName},
-		Status:  StatusRef{Name: config.StatusName},
-		Priority: PriorityRef{Name: config.PriorityName},
-		Type:     TypeRef{Name: config.TypeName},
+		Summary:     summary,
+		Company:     CompanyRef{ID: companyID},
+		Board:       BoardRef{Name: config.BoardName},
+		Status:      StatusRef{Name: config.StatusName},
+		Priority:    PriorityRef{Name: config.PriorityName},
+		Type:        TypeRef{Name: config.TypeName},
 		Description: description,
 	}
 
@@ -144,22 +146,23 @@ func (c *Client) CreateTicketWithConfig(companyID int, summary, description stri
 	log.Printf("Created ticket %d for company %d (%s)", result.ID, result.Company.ID, result.Company.Name)
 	return &result, nil
 }
-//CW error - we need to define the patch array
+
+// CW error - we need to define the patch array
 type PatchDoc struct {
-	Op string `json:"op"`
-	Path string `json:"path"`
+	Op    string      `json:"op"`
+	Path  string      `json:"path"`
 	Value interface{} `json:"value"`
 }
 
-//endPatch
+// endPatch
 func (c *Client) UpdateTicket(ticketID int, status string) error {
 	newStatusValue := StatusRef{Name: status}
 	patchOp := PatchDoc{
-		Op: "replace",
-		Path: "/status",
+		Op:    "replace",
+		Path:  "/status",
 		Value: newStatusValue,
 	}
-	patchDocument :=[]PatchDoc{patchOp}
+	patchDocument := []PatchDoc{patchOp}
 
 	endpoint := fmt.Sprintf("/service/tickets/%d", ticketID)
 	return c.makeRequest("PATCH", endpoint, patchDocument, nil)
@@ -178,8 +181,18 @@ func (c *Client) CloseTicket(ticketID int) error {
 		return nil
 	}
 
-	// Try common closed status names - Claude fail.
-	// ConnectWise boards typically have status names like "Closed", ">Closed", "Complete", etc.
+	// Try configured status first if available
+	if c.closedStatus != "" {
+		log.Printf("Attempting to close ticket %d with configured status: %s", ticketID, c.closedStatus)
+		err := c.UpdateTicket(ticketID, c.closedStatus)
+		if err == nil {
+			log.Printf("Successfully closed ticket %d with status: %s", ticketID, c.closedStatus)
+			return nil
+		}
+		log.Printf("Failed to close with configured status '%s': %v", c.closedStatus, err)
+	}
+
+	// Fallback to trying common closed status names
 	closedStatuses := []string{">Closed", "Closed", "Complete", "Completed", "Resolved"}
 
 	for _, statusName := range closedStatuses {
@@ -397,9 +410,9 @@ func (c *Client) makeRequest(method, endpoint string, payload interface{}, resul
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			b, _ := io.ReadAll(resp.Body)
-			log.Printf("Go_Go_Go")
-			fmt.Println(string(b))
+		b, _ := io.ReadAll(resp.Body)
+		log.Printf("Go_Go_Go")
+		fmt.Println(string(b))
 		return fmt.Errorf("API request failed with status: %d", resp.StatusCode)
 
 	}

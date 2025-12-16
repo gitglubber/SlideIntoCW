@@ -7,13 +7,14 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/joho/godotenv"
 	"slide-cw-integration/internal/alerts"
 	"slide-cw-integration/internal/connectwise"
 	"slide-cw-integration/internal/database"
 	"slide-cw-integration/internal/mapping"
 	"slide-cw-integration/internal/slide"
 	"slide-cw-integration/internal/web"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -101,6 +102,7 @@ func main() {
 		os.Getenv("CONNECTWISE_PUBLIC_KEY"),
 		os.Getenv("CONNECTWISE_PRIVATE_KEY"),
 		os.Getenv("CONNECTWISE_CLIENT_ID"),
+		os.Getenv("CW_CLOSED_STATUS_NAME"),
 	)
 
 	// Initialize mapping service
@@ -154,6 +156,7 @@ func runWebUI(port string) error {
 		os.Getenv("CONNECTWISE_PUBLIC_KEY"),
 		os.Getenv("CONNECTWISE_PRIVATE_KEY"),
 		os.Getenv("CONNECTWISE_CLIENT_ID"),
+		os.Getenv("CW_CLOSED_STATUS_NAME"),
 	)
 
 	// Initialize mapping service

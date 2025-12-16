@@ -355,6 +355,7 @@ func (m *Monitor) matchDeviceToClient(deviceName string, clients []models.SlideC
 	}
 
 	log.Printf("Extracted device prefix: '%s' from device name: '%s'", prefix, deviceName)
+	log.Printf("Attempting to match against %d Slide clients", len(clients))
 
 	// Try to match prefix to client name initials or starts-with
 	for i := range clients {
@@ -384,6 +385,10 @@ func (m *Monitor) matchDeviceToClient(deviceName string, clients []models.SlideC
 			log.Printf("Matched device prefix '%s' to client '%s' (initials: %s)", prefix, client.Name, initials)
 			return client
 		}
+
+		// Debug: log what we tried
+		log.Printf("  Checked client '%s' (ID: %s): starts-with=%v, initials='%s'",
+			client.Name, client.ID, strings.HasPrefix(clientUpper, prefix), initials)
 	}
 
 	log.Printf("No client match found for device prefix: '%s'", prefix)

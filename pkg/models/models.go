@@ -205,7 +205,9 @@ func (t *ConnectWiseTicket) IsClosed() bool {
 	}
 
 	for _, closedStatus := range closedStatuses {
-		if statusName == closedStatus {
+		// Check if status name starts with the closed status keyword
+		// This handles cases like "Completed-Silent", "Closed-Fixed", etc.
+		if strings.HasPrefix(statusName, closedStatus) {
 			return true
 		}
 	}

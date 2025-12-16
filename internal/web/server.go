@@ -134,6 +134,7 @@ func (s *Server) Start() error {
 	// Tickets
 	http.HandleFunc("/api/tickets/mappings", s.handleTicketMappings)
 	http.HandleFunc("/api/admin/reset-mapping", s.handleResetMapping)
+	http.HandleFunc("/api/admin/delete-ticket-mapping", s.handleDeleteTicketMapping)
 
 	log.Printf("Web UI server starting on http://localhost:%s", s.port)
 	return http.ListenAndServe(":"+s.port, nil)
@@ -611,6 +612,32 @@ func (s *Server) handleResetMapping(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Reset mapping for alert: %s", req.AlertID)
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+func (s *Server) handleDeleteTicketMapping(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		AlertID string `json:"alertId"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Delete the alert-ticket mapping completely so a new ticket can be created
+	_, err := s.db.GetConn().Exec("DELETE FROM alert_ticket_mappings WHERE alert_id = ?", req.AlertID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("Deleted ticket mapping for alert: %s", req.AlertID)
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok", "message": "Mapping deleted. Monitor will create a new ticket on next run."})
 }
 
 // Ticket mappings

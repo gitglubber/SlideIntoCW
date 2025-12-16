@@ -37,6 +37,7 @@ func runMapClients() error {
 		os.Getenv("CONNECTWISE_PUBLIC_KEY"),
 		os.Getenv("CONNECTWISE_PRIVATE_KEY"),
 		os.Getenv("CONNECTWISE_CLIENT_ID"),
+		os.Getenv("CW_CLOSED_STATUS_NAME"),
 	)
 
 	// Get clients from both APIs
