@@ -72,6 +72,7 @@ This application bridges **Slide Backup** (Slide.Tech) and **ConnectWise Manage*
    CONNECTWISE_PUBLIC_KEY=your_public_key # public key
    CONNECTWISE_PRIVATE_KEY=your_private_key # private key
    CONNECTWISE_CLIENT_ID=your_client_id # get from developers.connectwise.com
+   CW_CLOSED_STATUS_Name=YourPreferredClosedStatus # doesn't have to be a "closed" status at least not as its defined. 
    ```
 
 3. **Run the application:**
